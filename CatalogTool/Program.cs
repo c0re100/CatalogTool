@@ -184,7 +184,13 @@ if (args.Length < 1)
 
 if (args.Length < 2)
 {
-    Console.WriteLine("Where is your catalog.json path?");
+    Console.WriteLine("Where is your catalog path?");
+    return;
+}
+
+if (!File.Exists(args[1]))
+{
+    Console.WriteLine("catalog file not found!");
     return;
 }
 
