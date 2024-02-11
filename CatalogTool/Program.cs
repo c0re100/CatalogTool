@@ -18,7 +18,7 @@ static bool IsUnityFS(string path)
     return reader.ReadStringLength(unityFs.Length) == unityFs;
 }
 
-static void SearchExample(string[] args)
+static void SearchAsset(string[] args)
 {
     if (args.Length < 2)
     {
@@ -69,7 +69,7 @@ static void SearchExample(string[] args)
     }
 }
 
-static void PatchCrcExample(string[] args)
+static void PatchCrc(string[] args)
 {
     if (args.Length < 2)
     {
@@ -197,15 +197,15 @@ static void ExtractAssetList(string[] args)
 if (args.Length < 1)
 {
     Console.WriteLine("need args: <mode> <file>");
-    Console.WriteLine("modes: searchasset, patchcrc, extract");
+    Console.WriteLine("modes: search, patch, extract");
 }
-else if (args[0] == "searchasset")
+else if (args[0] == "search")
 {
-    SearchExample(args);
+    SearchAsset(args);
 }
-else if (args[0] == "patchcrc")
+else if (args[0] == "patch")
 {
-    PatchCrcExample(args);
+    PatchCrc(args);
 }
 else if (args[0] == "extract")
 {
