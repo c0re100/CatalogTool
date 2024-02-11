@@ -135,13 +135,13 @@ static void ExtractAssetList(string path, ContentCatalogData ccd, bool fromBundl
         }
     }
 
-    var hashesJSON = JsonSerializer.Serialize(bundleHashes, new JsonSerializerOptions() { WriteIndented = true });
+    var hashesJSON = JsonSerializer.Serialize(bundleHashes, new JsonSerializerOptions() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
     using (StreamWriter writer = new StreamWriter(path.Replace(".json", "").Replace(".bundle", "")+"_hash.json"))
     {
         writer.Write(hashesJSON);
     }
 
-    var listJSON = JsonSerializer.Serialize(assetList, new JsonSerializerOptions() { WriteIndented = true });
+    var listJSON = JsonSerializer.Serialize(assetList, new JsonSerializerOptions() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
     using (StreamWriter writer = new StreamWriter(path.Replace(".json", "").Replace(".bundle", "") + "_list.json"))
     {
         writer.Write(listJSON);
