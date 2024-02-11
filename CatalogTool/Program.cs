@@ -17,16 +17,8 @@ static bool IsUnityFS(string path)
     return reader.ReadStringLength(unityFs.Length) == unityFs;
 }
 
-static void SearchAsset(string[] args)
+static void SearchAsset(string path, ContentCatalogData ccd, bool fromBundle)
 {
-    bool fromBundle = IsUnityFS(args[1]);
-
-    ContentCatalogData ccd;
-    if (fromBundle)
-        ccd = AddressablesJsonParser.FromBundle(args[1]);
-    else
-        ccd = AddressablesJsonParser.FromString(File.ReadAllText(args[1]));
-
     Console.Write("search key to find bundles of: ");
     string? search = Console.ReadLine();
 
@@ -62,16 +54,8 @@ static void SearchAsset(string[] args)
     }
 }
 
-static void PatchCrc(string[] args)
+static void PatchCrc(string path, ContentCatalogData ccd, bool fromBundle)
 {
-    bool fromBundle = IsUnityFS(args[1]);
-
-    ContentCatalogData ccd;
-    if (fromBundle)
-        ccd = AddressablesJsonParser.FromBundle(args[1]);
-    else
-        ccd = AddressablesJsonParser.FromString(File.ReadAllText(args[1]));
-
     Console.WriteLine("patching...");
 
     foreach (var resourceList in ccd.Resources.Values)
@@ -101,25 +85,17 @@ static void PatchCrc(string[] args)
     }
 
     if (fromBundle)
-        AddressablesJsonParser.ToBundle(ccd, args[1], args[1] + ".patched");
+        AddressablesJsonParser.ToBundle(ccd, path, path + ".patched");
     else
-        File.WriteAllText(args[1] + ".patched", AddressablesJsonParser.ToJson(ccd));
+        File.WriteAllText(path + ".patched", AddressablesJsonParser.ToJson(ccd));
 
-    File.Move(args[1], args[1] + ".old");
-    File.Move(args[1] + ".patched", args[1]);
+    File.Move(path, path + ".old");
+    File.Move(path + ".patched", path);
 }
 
-static void ExtractAssetList(string[] args)
+static void ExtractAssetList(string path, ContentCatalogData ccd, bool fromBundle)
 {
-    var isWin = args[1].Contains("win64");
-
-    bool fromBundle = IsUnityFS(args[1]);
-
-    ContentCatalogData ccd;
-    if (fromBundle)
-        ccd = AddressablesJsonParser.FromBundle(args[1]);
-    else
-        ccd = AddressablesJsonParser.FromString(File.ReadAllText(args[1]));
+    var isWin = path.Contains("win64");
 
     Dictionary<string, string> bundleHashes = new();
 
@@ -160,13 +136,13 @@ static void ExtractAssetList(string[] args)
     }
 
     var hashesJSON = JsonSerializer.Serialize(bundleHashes, new JsonSerializerOptions() { WriteIndented = true });
-    using (StreamWriter writer = new StreamWriter(args[1].Replace(".json", "").Replace(".bundle", "")+"_hash.json"))
+    using (StreamWriter writer = new StreamWriter(path.Replace(".json", "").Replace(".bundle", "")+"_hash.json"))
     {
         writer.Write(hashesJSON);
     }
 
     var listJSON = JsonSerializer.Serialize(assetList, new JsonSerializerOptions() { WriteIndented = true });
-    using (StreamWriter writer = new StreamWriter(args[1].Replace(".json", "").Replace(".bundle", "") + "_list.json"))
+    using (StreamWriter writer = new StreamWriter(path.Replace(".json", "").Replace(".bundle", "") + "_list.json"))
     {
         writer.Write(listJSON);
     }
@@ -194,17 +170,26 @@ if (!File.Exists(args[1]))
     return;
 }
 
-if (args[0] == "search")
+var mode = args[0];
+var path = args[1];
+
+bool fromBundle = IsUnityFS(path);
+
+ContentCatalogData ccd = fromBundle
+    ? AddressablesJsonParser.FromBundle(path)
+    : AddressablesJsonParser.FromString(File.ReadAllText(path));
+
+if (mode == "search")
 {
-    SearchAsset(args);
+    SearchAsset(path, ccd, fromBundle);
 }
-else if (args[0] == "patch")
+else if (mode == "patch")
 {
-    PatchCrc(args);
+    PatchCrc(path, ccd, fromBundle);
 }
-else if (args[0] == "extract")
+else if (mode == "extract")
 {
-    ExtractAssetList(args);
+    ExtractAssetList(path, ccd, fromBundle);
 }
 else
 {
