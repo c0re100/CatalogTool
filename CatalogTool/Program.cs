@@ -5,6 +5,18 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+static bool IsUnityFS(string path)
+{
+    const string unityFs = "UnityFS";
+    using AssetsFileReader reader = new AssetsFileReader(path);
+    if (reader.BaseStream.Length < unityFs.Length)
+    {
+        return false;
+    }
+
+    return reader.ReadStringLength(unityFs.Length) == unityFs;
+}
+
 static void SearchExample(string[] args)
 {
     if (args.Length < 2)
@@ -54,18 +66,6 @@ static void SearchExample(string[] args)
             }
         }
     }
-}
-
-static bool IsUnityFS(string path)
-{
-    const string unityFs = "UnityFS";
-    using AssetsFileReader reader = new AssetsFileReader(path);
-    if (reader.BaseStream.Length < unityFs.Length)
-    {
-        return false;
-    }
-
-    return reader.ReadStringLength(unityFs.Length) == unityFs;
 }
 
 static void PatchCrcExample(string[] args)
