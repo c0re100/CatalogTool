@@ -4,6 +4,7 @@ using AssetsTools.NET;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Xml;
 
 static bool IsUnityFS(string path)
 {
@@ -121,10 +122,82 @@ static void PatchCrcExample(string[] args)
     File.Move(args[1] + ".patched", args[1]);
 }
 
+static void ExtractAssetList(string[] args)
+{
+    if (args.Length < 2)
+    {
+        Console.WriteLine("need path to catalog.json");
+        return;
+    }
+
+    var isWin = args[1].Contains("win64");
+
+    bool fromBundle = IsUnityFS(args[1]);
+
+    ContentCatalogData ccd;
+    if (fromBundle)
+        ccd = AddressablesJsonParser.FromBundle(args[1]);
+    else
+        ccd = AddressablesJsonParser.FromString(File.ReadAllText(args[1]));
+
+    Dictionary<string, string> bundleHashes = new();
+
+    foreach (var res in ccd.Resources)
+    {
+        var loc = res.Value;
+
+        if (loc[0].InternalId.StartsWith("0#") || loc[0].InternalId.Contains(".bundle"))
+        {
+            if (loc[0].Data is ClassJsonObject data)
+            {
+                var doc = JsonDocument.Parse(data.JsonText);
+                var root = doc.RootElement;
+                var hash = root.GetProperty("m_Hash").GetString();
+                if (hash != null)
+                {
+                    bundleHashes.TryAdd("0#/"+loc[0].PrimaryKey, hash);
+                }
+            }
+        }
+    }
+
+    Dictionary<string, string> assetList = new();
+
+    foreach (object k in ccd.Resources.Keys)
+    {
+        if (k is string s && !s.Contains(".bundle") && s.Contains("/"))
+        {
+            foreach (var rsrc in ccd.Resources[k])
+            {
+                if (rsrc.ProviderId == "UnityEngine.ResourceManagement.ResourceProviders.BundledAssetProvider")
+                {
+                    List<ResourceLocation> o = ccd.Resources[rsrc.Dependency];
+                    assetList.TryAdd(s, o[0].PrimaryKey);
+                }
+            }
+        }
+    }
+
+    var hashesJSON = JsonSerializer.Serialize(bundleHashes, new JsonSerializerOptions() { WriteIndented = true });
+    using (StreamWriter writer = new StreamWriter(args[1].Replace(".json", "").Replace(".bundle", "")+"_hash.json"))
+    {
+        writer.Write(hashesJSON);
+    }
+
+    var listJSON = JsonSerializer.Serialize(assetList, new JsonSerializerOptions() { WriteIndented = true });
+    using (StreamWriter writer = new StreamWriter(args[1].Replace(".json", "").Replace(".bundle", "") + "_list.json"))
+    {
+        writer.Write(listJSON);
+    }
+
+    Console.WriteLine(bundleHashes.Count);
+    Console.WriteLine(assetList.Count);
+}
+
 if (args.Length < 1)
 {
     Console.WriteLine("need args: <mode> <file>");
-    Console.WriteLine("modes: searchasset, patchcrc");
+    Console.WriteLine("modes: searchasset, patchcrc, extract");
 }
 else if (args[0] == "searchasset")
 {
@@ -133,6 +206,10 @@ else if (args[0] == "searchasset")
 else if (args[0] == "patchcrc")
 {
     PatchCrcExample(args);
+}
+else if (args[0] == "extract")
+{
+    ExtractAssetList(args);
 }
 else
 {
