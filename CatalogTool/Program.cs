@@ -4,7 +4,6 @@ using AssetsTools.NET;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Xml;
 
 static bool IsUnityFS(string path)
 {
@@ -20,12 +19,6 @@ static bool IsUnityFS(string path)
 
 static void SearchAsset(string[] args)
 {
-    if (args.Length < 2)
-    {
-        Console.WriteLine("need path to catalog.json");
-        return;
-    }
-
     bool fromBundle = IsUnityFS(args[1]);
 
     ContentCatalogData ccd;
@@ -71,12 +64,6 @@ static void SearchAsset(string[] args)
 
 static void PatchCrc(string[] args)
 {
-    if (args.Length < 2)
-    {
-        Console.WriteLine("need path to catalog.json");
-        return;
-    }
-
     bool fromBundle = IsUnityFS(args[1]);
 
     ContentCatalogData ccd;
@@ -124,12 +111,6 @@ static void PatchCrc(string[] args)
 
 static void ExtractAssetList(string[] args)
 {
-    if (args.Length < 2)
-    {
-        Console.WriteLine("need path to catalog.json");
-        return;
-    }
-
     var isWin = args[1].Contains("win64");
 
     bool fromBundle = IsUnityFS(args[1]);
@@ -198,8 +179,16 @@ if (args.Length < 1)
 {
     Console.WriteLine("need args: <mode> <file>");
     Console.WriteLine("modes: search, patch, extract");
+    return;
 }
-else if (args[0] == "search")
+
+if (args.Length < 2)
+{
+    Console.WriteLine("Where is your catalog.json path?");
+    return;
+}
+
+if (args[0] == "search")
 {
     SearchAsset(args);
 }
