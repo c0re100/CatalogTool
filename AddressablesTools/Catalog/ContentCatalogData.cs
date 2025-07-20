@@ -11,6 +11,7 @@ namespace AddressablesTools.Catalog
     {
         // only used for binary format
         public int Version { get; set; }
+        public CatalogFileType Type { get; set; }
 
         public string LocatorId { get; set; }
         public string BuildResultHash { get; set; }

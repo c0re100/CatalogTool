@@ -1,6 +1,8 @@
 ﻿using AddressablesTools;
 using AddressablesTools.Catalog;
+using AddressablesTools.Classes;
 using AssetsTools.NET;
+using System.Collections.Generic;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -39,13 +41,28 @@ static void SearchAsset(string path, ContentCatalogData ccd, bool fromBundle)
                 Console.WriteLine($" ({rsrc.ProviderId})");
                 if (rsrc.ProviderId == "UnityEngine.ResourceManagement.ResourceProviders.BundledAssetProvider")
                 {
-                    List<ResourceLocation> o = ccd.Resources[rsrc.Dependency];
-                    Console.WriteLine($"  {o[0].InternalId}");
-                    if (o.Count > 1)
+                    List<ResourceLocation> locs;
+                    if (rsrc.Dependencies != null)
                     {
-                        for (int i = 1; i < o.Count; i++)
+                        // new version
+                        locs = rsrc.Dependencies;
+                    }
+                    else if (rsrc.DependencyKey != null)
+                    {
+                        // old version
+                        locs = ccd.Resources[rsrc.DependencyKey];
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
+                    Console.WriteLine($"  {locs[0].InternalId}");
+                    if (locs.Count > 1)
+                    {
+                        for (int i = 1; i < locs.Count; i++)
                         {
-                            Console.WriteLine($"    {o[i].InternalId}");
+                            Console.WriteLine($"    {locs[i].InternalId}");
                         }
                     }
                 }
@@ -54,49 +71,78 @@ static void SearchAsset(string path, ContentCatalogData ccd, bool fromBundle)
     }
 }
 
+static void PatchCrcRecursive(ResourceLocation thisRsrc, HashSet<ResourceLocation> seenRsrcs)
+{
+    // I think this can't happen right now, resources are duplicated every time
+    if (seenRsrcs.Contains(thisRsrc))
+        return;
+
+    var data = thisRsrc.Data;
+    if (data is WrappedSerializedObject { Object: AssetBundleRequestOptions abro })
+    {
+        abro.Crc = 0;
+    }
+
+    seenRsrcs.Add(thisRsrc);
+    foreach (var childRsrc in thisRsrc.Dependencies)
+    {
+        PatchCrcRecursive(childRsrc, seenRsrcs);
+    }
+}
+
 static void PatchCrc(string path, ContentCatalogData ccd, bool fromBundle)
 {
     Console.WriteLine("patching...");
 
+    var seenRsrcs = new HashSet<ResourceLocation>();
     foreach (var resourceList in ccd.Resources.Values)
     {
         foreach (var rsrc in resourceList)
         {
+            if (rsrc.Dependencies != null)
+            {
+                // we just spotted a new version entry, switch to new entry parsing
+                PatchCrcRecursive(rsrc, seenRsrcs);
+                continue;
+            }
+
             if (rsrc.ProviderId == "UnityEngine.ResourceManagement.ResourceProviders.AssetBundleProvider")
             {
+                // old version
                 var data = rsrc.Data;
-                if (data != null && data is ClassJsonObject classJsonObject)
+                if (data is WrappedSerializedObject { Object: AssetBundleRequestOptions abro })
                 {
-                    JsonSerializerOptions options = new JsonSerializerOptions()
-                    {
-                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                    };
-
-                    JsonObject? jsonObj = JsonSerializer.Deserialize<JsonObject>(classJsonObject.JsonText);
-                    if (jsonObj != null)
-                    {
-                        jsonObj["m_Crc"] = 0;
-                        classJsonObject.JsonText = JsonSerializer.Serialize(jsonObj, options);
-                        rsrc.Data = classJsonObject;
-                    }
+                    abro.Crc = 0;
                 }
             }
         }
     }
 
     if (fromBundle)
-        AddressablesJsonParser.ToBundle(ccd, path, path + ".patched");
+    {
+        AddressablesCatalogFileParser.ToBundle(ccd, path, path + ".patched");
+    }
     else
-        File.WriteAllText(path + ".patched", AddressablesJsonParser.ToJson(ccd));
+    {
+        switch (ccd.Type)
+        {
+            case CatalogFileType.Json:
+                File.WriteAllText(path + ".patched", AddressablesCatalogFileParser.ToJsonString(ccd));
+                break;
+            case CatalogFileType.Binary:
+                File.WriteAllBytes(path + ".patched", AddressablesCatalogFileParser.ToBinaryData(ccd));
+                break;
+            default:
+                return;
+        }
+    }
 
-    File.Move(path, path + ".old");
-    File.Move(path + ".patched", path);
+    File.Move(path, path + ".old", true);
+    File.Move(path + ".patched", path, true);
 }
 
 static void ExtractAssetList(string path, ContentCatalogData ccd, bool fromBundle)
 {
-    var isWin = path.Contains("win64");
-
     Dictionary<string, string> bundleHashes = new();
 
     foreach (var res in ccd.Resources)
@@ -105,15 +151,9 @@ static void ExtractAssetList(string path, ContentCatalogData ccd, bool fromBundl
 
         if (loc[0].InternalId.StartsWith("0#") || loc[0].InternalId.Contains(".bundle"))
         {
-            if (loc[0].Data is ClassJsonObject data)
+            if (loc[0].Data is WrappedSerializedObject { Object: AssetBundleRequestOptions abro })
             {
-                var doc = JsonDocument.Parse(data.JsonText);
-                var root = doc.RootElement;
-                var hash = root.GetProperty("m_Hash").GetString();
-                if (hash != null)
-                {
-                    bundleHashes.TryAdd("0#/"+loc[0].PrimaryKey, hash);
-                }
+                bundleHashes.TryAdd("0#/"+ loc[0].PrimaryKey, abro.Hash);
             }
         }
     }
@@ -128,8 +168,23 @@ static void ExtractAssetList(string path, ContentCatalogData ccd, bool fromBundl
             {
                 if (rsrc.ProviderId == "UnityEngine.ResourceManagement.ResourceProviders.BundledAssetProvider")
                 {
-                    List<ResourceLocation> o = ccd.Resources[rsrc.Dependency];
-                    assetList.TryAdd(s, o[0].PrimaryKey);
+                    List<ResourceLocation> locs;
+                    if (rsrc.Dependencies != null)
+                    {
+                        // new version
+                        locs = rsrc.Dependencies;
+                    }
+                    else if (rsrc.DependencyKey != null)
+                    {
+                        // old version
+                        locs = ccd.Resources[rsrc.DependencyKey];
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
+                    assetList.TryAdd(s, locs[0].PrimaryKey);
                 }
             }
         }
@@ -179,9 +234,32 @@ var path = args[1];
 
 bool fromBundle = IsUnityFS(path);
 
-ContentCatalogData ccd = fromBundle
-    ? AddressablesJsonParser.FromBundle(path)
-    : AddressablesJsonParser.FromString(File.ReadAllText(path));
+ContentCatalogData ccd;
+CatalogFileType fileType = CatalogFileType.None;
+if (fromBundle)
+{
+    ccd = AddressablesCatalogFileParser.FromBundle(path);
+}
+else
+{
+    using (FileStream fs = File.OpenRead(path))
+    {
+        fileType = AddressablesCatalogFileParser.GetCatalogFileType(fs);
+    }
+
+    switch (fileType)
+    {
+        case CatalogFileType.Json:
+            ccd = AddressablesCatalogFileParser.FromJsonString(File.ReadAllText(path));
+            break;
+        case CatalogFileType.Binary:
+            ccd = AddressablesCatalogFileParser.FromBinaryData(File.ReadAllBytes(path));
+            break;
+        default:
+            Console.WriteLine("not a valid catalog file");
+            return;
+    }
+}
 
 if (mode == "search")
 {

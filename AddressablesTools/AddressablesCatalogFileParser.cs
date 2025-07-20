@@ -26,6 +26,7 @@ namespace AddressablesTools
 
             ContentCatalogData catalogData = new ContentCatalogData();
             catalogData.Read(reader);
+            catalogData.Type = CatalogFileType.Binary;
 
             return catalogData;
         }
@@ -36,6 +37,7 @@ namespace AddressablesTools
 
             ContentCatalogData catalogData = new ContentCatalogData();
             catalogData.Read(ccdJson);
+            catalogData.Type = CatalogFileType.Json;
 
             return catalogData;
         }
