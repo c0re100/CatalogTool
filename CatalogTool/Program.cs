@@ -2,10 +2,8 @@
 using AddressablesTools.Catalog;
 using AddressablesTools.Classes;
 using AssetsTools.NET;
-using System.Collections.Generic;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 static bool IsUnityFS(string path)
 {
